@@ -6,6 +6,15 @@
 
 The goal of this project is to digitally reconstruct a fragmented **Mayan stele** using advanced 3D computer vision and deep learning techniques. The central topic is automatic artifact reassembly, where broken stone fragments are scanned as 3D point clouds and then analyzed to detect break surfaces, extract geometric features, and identify possible matches. To tackle this challenge, I preprocess the fragments with multi-scale downsampling and clustering, represent them as graphs of potential connections, and train a graph neural network and Siamese-based models to predict which fragments belong together. These predictions are refined with alignment algorithms like Iterative Closest Point (ICP), while ground truth reconstructions provide assembly knowledge to guide the model. Ultimately, the system aims to move from scattered fragments to a coherent, near-complete digital reconstruction of the stele, reducing manual effort while preserving archaeological heritage.
 
+## TL;DR
+This project reconstructs fragmented Mayan stele scans by:
+1) detecting break surfaces (color)
+2) extracting geometric features
+3) matching surfaces
+4) aligning fragments (ICP)
+5) visualizing the reconstruction
+
+
 ## What I Built (use the config I created)
 
 This project implements a complete **geometric-based reconstruction pipeline** as the foundation for future deep learning integration. The system consists of several interconnected modules:
@@ -194,12 +203,34 @@ Latest reconstruction pipeline
 └── examples/                # Usage examples and tutorials
 ```
 
+## Input Data
+Place fragment PLY files inside:
+data/input/
+
+Output will be written to:
+data/output/
+
 ### Prerequisites
 
 ```bash
 # Install dependencies
 python setup_system.py
-```
+
+
+### Installation
+```bash
+python -m venv .venv
+# Windows
+.venv\Scripts\activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+# Linux/macOS
+source .venv/bin/activate
+
+## Requirements
+- Python 3.10+
+- Tested on Windows/Linux
+
 
 ### Quick Start
 
@@ -243,11 +274,20 @@ python config_manager.py create --template conservative --output my_config.json
 
 For more comprehensive details about the project and documentation, you can explore the following links:
 
-- **Blog**: [Atif_Khan_HealingSrones_Blog](https://medium.com/@atif.4024120/gsoc-2025-with-humanai-healing-stones-8b9f50618030)
-- **Blog for cluster approch**: [cluster approach](https://medium.com/@atif.4024120/gsoc-2024-with-humanai-healing-stones-811a9010cfa0)
+- **Blog**: [Atif_Khan_HealingStones_Blog](https://medium.com/@atif.4024120/gsoc-2025-with-humanai-healing-stones-8b9f50618030)
+- **Blog for cluster approach**: [cluster approach](https://medium.com/@atif.4024120/gsoc-2024-with-humanai-healing-stones-811a9010cfa0)
 - **Google Summer of Code (GSoC) 2025 Project**: [Gsoc 2025](https://summerofcode.withgoogle.com/programs/2025/projects/elgslkxD)
 - **HumanAI Foundation**: [Human AI Projects](https://humanai.foundation/activities/gsoc2025.html)
 - **Machine learning approach**: [Master Branch](https://github.com/K-Atif18/healing-stones/tree/master)
 - **cluster on break surface method**: [Cluster Branch](https://github.com/K-Atif18/healing-stones/tree/cluster)
 
-Contributions to this project are welcome. If you are interested in contributing, please fork the repository and submit a pull request. Ensure that your code follows the style and conventions used in this repository.
+### Contributions 
+
+Contributions to this project are welcome. If you are interested in contributing, please follow the steps:
+
+1. Fork the repository
+2. Create a branch
+3. Make changes
+4. Open a PR
+
+Please also open an issue before large changes.
