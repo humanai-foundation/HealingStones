@@ -41,3 +41,21 @@ Historically works of art and architecture have been subjected to fragmentation:
 | Sergei Gleyzer | University of Alabama|[About Link](https://physics.ua.edu/people/sergei-gleyzer/)
 | Lizzette Soto| University of Alabama|[About Link](https://anthropology.ua.edu/graduate-student/lizzette-soto/)
 
+## Repository Structure and Implementations
+
+This repository currently contains two parallel implementations of the HealingStones pipeline.
+
+### `atif/`
+- Contains a comprehensive geometric reconstruction pipeline developed as part of the GSoC HealingStones work
+- Focuses on surface-based matching, alignment, and progressive assembly
+- Includes its own setup instructions and dependency definitions
+- Intended for contributors interested in the full reconstruction workflow
+
+### `satvik/`
+- Contains an alternative or experimental implementation of the reconstruction pipeline
+- Explores different preprocessing, alignment, or evaluation strategies
+- Maintains a separate setup process and dependency list
+
+### Recommendation for New Contributors
+New contributors are encouraged to start with **one implementation only** and follow its setup instructions consistently.  
+The recommended starting point can be clarified further as the project evolves.
