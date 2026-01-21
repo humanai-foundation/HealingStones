@@ -898,20 +898,60 @@ class ReconstructionPipeline:
             traceback.print_exc()
             return False
 
-def main():
-    """Command line interface for the reconstruction pipeline"""
+def parse_args():
+    """
+    Parse command-line arguments for the reconstruction pipeline.
+    
+    Returns:
+        argparse.Namespace: Parsed arguments with config, data_path, visualize, etc.
+    """
     parser = argparse.ArgumentParser(
-        description="Mayan Stele Fragment Reconstruction Pipeline"
+        description="Mayan Stele Fragment Reconstruction Pipeline",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python main_pipeline.py --help
+  python main_pipeline.py --input-dir input/ --output-dir output/
+  python main_pipeline.py --input-dir input/ --output-dir output/ --visualize
+  python main_pipeline.py --input-dir input/ --output-dir output/ --config configs/custom.json
+"""
     )
     
     parser.add_argument(
-        "input_dir",
-        help="Directory containing PLY files with colored break surfaces"
+        "--input-dir",
+        type=str,
+        default=None,
+        help="Directory containing PLY files with colored break surfaces (optional)"
     )
     
     parser.add_argument(
-        "output_dir",
-        help="Directory to save reconstruction results"
+        "--output-dir",
+        type=str,
+        default=None,
+        help="Directory to save reconstruction results (optional)"
+    )
+    
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="configs/high_selectivity_config.json",
+        help="Path to JSON configuration file (default: configs/high_selectivity_config.json)"
+    )
+    
+    # TODO: --data-path is parsed but intentionally NOT wired into the pipeline yet.
+    # This preserves existing behavior. When additional data sources are needed,
+    # integrate data_path into run_pipeline() and the ReconstructionPipeline class.
+    parser.add_argument(
+        "--data-path",
+        type=str,
+        default=None,
+        help="Optional path to additional data directory (parsed but not yet used)"
+    )
+    
+    parser.add_argument(
+        "--visualize",
+        action="store_true",
+        help="Enable step-by-step visualizations during pipeline execution"
     )
     
     parser.add_argument(
@@ -929,20 +969,9 @@ def main():
     )
     
     parser.add_argument(
-        "--visualize-steps",
-        action="store_true",
-        help="Show step-by-step visualizations"
-    )
-    
-    parser.add_argument(
         "--no-reports",
         action="store_true",
         help="Skip generating detailed reports"
-    )
-    
-    parser.add_argument(
-        "--config",
-        help="JSON configuration file"
     )
     
     parser.add_argument(
@@ -952,27 +981,100 @@ def main():
         help="Target contact distance between surfaces in meters (default: 0.001 = 1mm)"
     )
     
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def run_pipeline(config_path=None, data_path=None, visualize=False, 
+                 input_dir=None, output_dir=None, **kwargs):
+    """
+    Run the fragment reconstruction pipeline with the specified parameters.
     
-    # Load configuration
+    Args:
+        config_path (str, optional): Path to JSON configuration file.
+            Defaults to 'configs/high_selectivity_config.json'.
+        data_path (str, optional): Path to additional data directory.
+            Currently unused, reserved for future use. TODO: Integrate data_path 
+            when additional data sources are supported.
+        visualize (bool): Enable step-by-step visualizations. Defaults to False.
+        input_dir (str, optional): Directory containing PLY files.
+        output_dir (str, optional): Directory to save reconstruction results.
+        **kwargs: Additional configuration options passed to ReconstructionPipeline.
+    
+    Returns:
+        bool: True if pipeline completed successfully, False otherwise.
+    """
+    # Use default config path if not provided
+    if config_path is None:
+        config_path = "configs/high_selectivity_config.json"
+    
+    # Build base configuration
     config = {
-        'min_similarity': args.min_similarity,
-        'color_tolerance': args.color_tolerance,
-        'visualize_steps': args.visualize_steps,
-        'output_reports': not args.no_reports,
-        'assembly_contact_distance': args.contact_distance
+        'visualize_steps': visualize,
+        'output_reports': True,
     }
     
-    if args.config:
-        with open(args.config, 'r') as f:
+    # Apply any additional kwargs to config
+    config.update(kwargs)
+    
+    # Load configuration from file if it exists
+    config_file = Path(config_path)
+    if config_file.exists():
+        print(f"Loading configuration from: {config_path}")
+        with open(config_path, 'r') as f:
             file_config = json.load(f)
             config.update(file_config)
+    else:
+        print(f"Warning: Config file not found at {config_path}, using defaults")
     
-    # Run pipeline
+    # TODO: data_path is intentionally parsed but NOT wired into the pipeline.
+    # This is to preserve existing behavior. When additional data sources are
+    # supported in the future, integrate data_path into ReconstructionPipeline.
+    if data_path is not None:
+        print(f"Note: --data-path '{data_path}' provided but not currently used by pipeline")
+    
+    # Create and run pipeline
     pipeline = ReconstructionPipeline(config)
-    success = pipeline.run_full_pipeline(args.input_dir, args.output_dir)
+    
+    # If input/output dirs not provided, print help and exit gracefully
+    if input_dir is None or output_dir is None:
+        print("No input/output directories specified. Use --input-dir and --output-dir.")
+        print("Run 'python main_pipeline.py --help' for usage information.")
+        return True  # Return True to indicate no error, just no work to do
+    
+    success = pipeline.run_full_pipeline(input_dir, output_dir)
+    return success
+
+
+def main():
+    """
+    Command line interface entry point for the reconstruction pipeline.
+    
+    Parses CLI arguments and invokes run_pipeline() with the appropriate parameters.
+    When called without arguments (other than required input/output dirs), uses 
+    default configuration from configs/high_selectivity_config.json.
+    """
+    args = parse_args()
+    
+    # Build additional config from CLI args
+    extra_config = {
+        'min_similarity': args.min_similarity,
+        'color_tolerance': args.color_tolerance,
+        'output_reports': not args.no_reports,
+        'assembly_contact_distance': args.contact_distance,
+    }
+    
+    # Run pipeline with CLI-provided parameters
+    success = run_pipeline(
+        config_path=args.config,
+        data_path=args.data_path,
+        visualize=args.visualize,
+        input_dir=args.input_dir,
+        output_dir=args.output_dir,
+        **extra_config
+    )
     
     sys.exit(0 if success else 1)
+
 
 if __name__ == "__main__":
     main()

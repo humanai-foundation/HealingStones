@@ -1,3 +1,5 @@
+> 📌 New contributors: see README_ONBOARDING.md for setup and usage instructions.
+
 # mayan_stele_readme
 
 # Mayan Stele Fragment Reconstruction System
