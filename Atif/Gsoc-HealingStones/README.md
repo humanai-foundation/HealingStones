@@ -251,3 +251,17 @@ For more comprehensive details about the project and documentation, you can expl
 - **cluster on break surface method**: [Cluster Branch](https://github.com/K-Atif18/healing-stones/tree/cluster)
 
 Contributions to this project are welcome. If you are interested in contributing, please fork the repository and submit a pull request. Ensure that your code follows the style and conventions used in this repository.
+
+## Important Notes for New Contributors
+
+- The current implementation focuses primarily on a **geometric-based reconstruction pipeline**.
+  Deep learning approaches (e.g., GNNs, Siamese networks) are experimental and listed as future work.
+
+- To run the pipeline, users must provide **real `.ply` files** containing **vertex-level RGB colors**
+  that mark break surfaces (red, green, blue). The pipeline will not execute successfully without such data.
+
+- At present, the repository does **not include sample `.ply` files** or a minimal test dataset.
+  New contributors may need to refer to the linked blog posts or contact maintainers for data context.
+
+- Some example scripts mentioned in earlier documentation (such as `examples/basic_test.py`)
+  are no longer part of the current repository structure.
