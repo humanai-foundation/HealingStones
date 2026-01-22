@@ -498,8 +498,45 @@ class PLYPreprocessor:
         return results
 
 # CLI Interface
-def main():
-    parser = argparse.ArgumentParser(description="PLY Preprocessing and Validation Tools")
+def parse_args():
+    """
+    Parse command-line arguments for batch processing.
+    
+    Returns:
+        argparse.Namespace: Parsed arguments
+    """
+    parser = argparse.ArgumentParser(
+        description="PLY Preprocessing and Validation Tools",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python batch_processor.py validate input/
+  python batch_processor.py preprocess input/ output/
+  python batch_processor.py --input-dir input/ --output-dir output/
+  python batch_processor.py --config configs/high_selectivity_config.json
+"""
+    )
+    
+    # Top-level optional arguments (work without subcommands)
+    parser.add_argument(
+        "--input-dir",
+        type=str,
+        default=None,
+        help="Input directory containing PLY files (optional)"
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help="Output directory for processed files (optional)"
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="configs/high_selectivity_config.json",
+        help="Path to JSON configuration file (default: configs/high_selectivity_config.json)"
+    )
+    
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
     
     # Validation command
@@ -517,8 +554,11 @@ def main():
     preprocess_parser.add_argument('--no-center', action='store_true', help='Skip centering')
     preprocess_parser.add_argument('--no-enhance-colors', action='store_true', help='Skip color enhancement')
     
-    args = parser.parse_args()
-    
+    return parser.parse_args()
+
+
+def run_command(args):
+    """Execute the appropriate command based on parsed args."""
     if args.command == 'validate':
         validator = PLYValidator()
         
@@ -589,7 +629,36 @@ def main():
             exit(1)
     
     else:
-        parser.print_help()
+        # No command specified, show help
+        print("No command specified. Use --help for usage information.")
+
+
+def cli_main():
+    """
+    Entry point for batch processing CLI.
+    
+    Supports both subcommands (validate, preprocess) and top-level optional args.
+    Running with no arguments prints help and exits gracefully.
+    """
+    args = parse_args()
+    
+    # TODO: --config is parsed but not yet wired into the processing logic.
+    # When config-based processing is needed, load and apply config here.
+    if args.config and args.config != "configs/high_selectivity_config.json":
+        print(f"Note: --config '{args.config}' provided but not yet used by batch processor")
+    
+    # Handle top-level --input-dir/--output-dir if no subcommand specified
+    if args.command is None:
+        if args.input_dir is not None or args.output_dir is not None:
+            # User provided top-level args but no subcommand
+            print("Note: --input-dir and --output-dir are parsed but require a subcommand.")
+            print("Use 'validate' or 'preprocess' subcommand, e.g.:")
+            print(f"  python batch_processor.py validate {args.input_dir or 'INPUT_DIR'}")
+            print(f"  python batch_processor.py preprocess {args.input_dir or 'INPUT_DIR'} {args.output_dir or 'OUTPUT_DIR'}")
+        return
+    
+    run_command(args)
+
 
 if __name__ == "__main__":
-    main()
+    cli_main()
