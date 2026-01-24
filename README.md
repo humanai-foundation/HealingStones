@@ -42,11 +42,16 @@ The project investigates machine learning and geometric approaches to:
 ## Project Structure
 
 The repository is organized as follows:
-├── data/ # Input 3D fragment files (.PLY)
-├── scripts/ # Core reconstruction, alignment, and analysis scripts
-├── requirements.txt # Python dependencies
-├── README.md # Project documentation
+
+```text
+
+├── data/                  # Input 3D fragment files (.PLY)
+├── scripts/               # Core reconstruction, alignment, and analysis scripts
+├── requirements.txt       # Python dependencies
+├── README.md              # Project documentation
 └── (additional files and folders)
+
+```
 
 ---
 
@@ -72,62 +77,66 @@ venv\Scripts\activate       # Windows
 # Install dependencies
 pip install -r requirements.txt
 
+```
 
-Dataset and Input Format
+## Dataset and Input Format
 
 The reconstruction pipeline operates on fragmented 3D point cloud files in .PLY format.
 
-Each .PLY file should represent a single artifact fragment
 
-Fragment files should be placed inside the data/ directory
+- Each .PLY file should represent a single artifact fragment
 
-Colored fragments (if available) can improve surface detection and matching quality
+- Fragment files should be placed inside the data/ directory
 
-Note: Example datasets are not included due to cultural heritage access restrictions and data ownership policies.
+- Colored fragments (if available) can improve surface detection and matching quality
 
-Typical Workflow
+#### Note: Example datasets are not included due to cultural heritage access restrictions and data ownership policies.
 
-1.Place fragment .PLY files into the data/ directory
+## Typical Workflow
 
-2.Run surface detection and pairwise matching scripts
+**1.** Place fragment .PLY files into the data/ directory
 
-3.Analyze similarity and alignment scores
+**2.** Run surface detection and pairwise matching scripts
 
-4.Perform global fragment assembly
+**3.** Analyze similarity and alignment scores
 
-5.Visualize and evaluate the reconstructed artifact
+**4.** Perform global fragment assembly
+
+**5.** Visualize and evaluate the reconstructed artifact
 
 Refer to the scripts in the scripts/ directory for specific execution details
 
-Contributing
+## Contributing
 
-Contributions are welcome!
+### Contributions are welcome!
 
-If you are new to the project:
+#### If you are new to the project:
 
-a.Start by running the existing pipeline locally
+- Start by running the existing pipeline locally
 
-b.Improve documentation, usability, or visualizations
+- Improve documentation, usability, or visualizations
 
-c.Open issues for bugs or enhancement ideas
+- Open issues for bugs or enhancement ideas
 
-To contribute:
 
-1.Fork the repository
+#### To contribute:
 
-2.Create a new branch
+**1.** Fork the repository  
+**2.** Create a new branch  
+**3.** Submit a pull request with a clear description of your changes  
+  
 
-3.Submit a pull request with a clear description of your changes
 
-Links
+## Links
 
-University of Alabama: https://www.ua.edu
+- **University of Alabama**: https://www.ua.edu
+- **HumanAI Foundation**: https://humanai.foundation/gsoc/organizations/2025/alabama.html
+- **Notre Dame in Color**: https://adhc1.ua.edu/notre_dame_in_color/
+- **Visual Documentation Lab**: https://sites.ua.edu/atokovinine/3d-lab/
 
-HumanAI Foundation: https://humanai.foundation/gsoc/organizations/2025/alabama.html
+## Mentors
 
-Notre Dame in Color: https://adhc1.ua.edu/notre_dame_in_color/
 
-Visual Documentation Lab: https://sites.ua.edu/atokovinine/3d-lab/
 
 | Name                 | Affiliation           | Profile                                                              |
 | -------------------- | --------------------- | -------------------------------------------------------------------- |
@@ -136,3 +145,11 @@ Visual Documentation Lab: https://sites.ua.edu/atokovinine/3d-lab/
 | Emanuele Usai        | University of Alabama | [About](https://physics.ua.edu/people/emanuele-usai/)                |
 | Sergei Gleyzer       | University of Alabama | [About](https://physics.ua.edu/people/sergei-gleyzer/)               |
 | Lizzette Soto        | University of Alabama | [About](https://anthropology.ua.edu/graduate-student/lizzette-soto/) |
+
+
+
+
+
+
+
+
