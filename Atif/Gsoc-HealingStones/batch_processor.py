@@ -8,6 +8,7 @@ import json
 import argparse
 from typing import List, Dict, Tuple, Optional
 import cv2
+from cli_utils import validate_paths, print_dry_run_summary
 
 class PLYValidator:
     """
@@ -498,8 +499,35 @@ class PLYPreprocessor:
         return results
 
 # CLI Interface
+def run_dry_run(input_path, output_path=None, command='validate'):
+    """
+    Validate inputs and report planned actions using shared utilities.
+    """
+    results, success = validate_paths(input_path, output_path)
+    
+    if not results['input']['exists']:
+        print(f"❌ Error: Input path not found: {input_path}")
+        return False
+
+    if command == 'validate':
+        actions = [
+            f"Validate {results['input']['ply_count']} files",
+            "Check mesh quality and color distribution",
+            f"Generate report {'to ' + output_path if output_path else 'to console'}"
+        ]
+    else:  # preprocess
+        actions = [
+            f"Preprocess {results['input']['ply_count']} files (clean, center, normalize)",
+            "Enhance break surface colors",
+            f"Save results to {output_path}"
+        ]
+    
+    print_dry_run_summary(f"Batch Processor ({command})", results, actions)
+    return success
+
 def main():
     parser = argparse.ArgumentParser(description="PLY Preprocessing and Validation Tools")
+    parser.add_argument('--dry-run', action='store_true', help='Validate inputs and report plan without executing processing')
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
     
     # Validation command
@@ -524,6 +552,11 @@ def main():
         
         input_path = Path(args.input)
         
+        # Handle dry run
+        if args.dry_run:
+            success = run_dry_run(args.input, args.output, command='validate')
+            exit(0 if success else 1)
+            
         if input_path.is_file():
             # Validate single file
             result = validator.validate_ply_file(args.input)
@@ -572,6 +605,11 @@ def main():
             'enhance_colors': not args.no_enhance_colors
         }
         
+        # Handle dry run
+        if args.dry_run:
+            success = run_dry_run(args.input, args.output, command='preprocess')
+            exit(0 if success else 1)
+            
         if input_path.is_file():
             # Preprocess single file
             success = preprocessor.preprocess_file(str(input_path), str(output_path), **options)

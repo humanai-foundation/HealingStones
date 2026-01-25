@@ -26,6 +26,7 @@ from feature_extractor import BreakSurfaceFeatureExtractor
 from surface_matcher import SurfaceMatcher
 from fragment_aligner import FragmentAligner
 from reconstruction_visualizer import ReconstructionVisualizer
+from cli_utils import validate_paths, print_dry_run_summary
 
 class ReconstructionPipeline:
     """
@@ -898,6 +899,26 @@ class ReconstructionPipeline:
             traceback.print_exc()
             return False
 
+def run_dry_run(input_dir, output_dir, config_path=None):
+    """
+    Validate inputs and report planned actions using shared utilities.
+    """
+    results, success = validate_paths(input_dir, output_dir, config_path)
+    
+    if not results['input']['exists']:
+        print(f"❌ Error: Input directory not found: {input_dir}")
+        return False
+
+    actions = [
+        f"Load and process {results['input']['ply_count']} fragments",
+        "Extract geometric features",
+        "Find surface matches and align fragments",
+        f"Generate reconstruction results in {output_dir}"
+    ]
+    
+    print_dry_run_summary("Main Pipeline", results, actions)
+    return success
+
 def main():
     """Command line interface for the reconstruction pipeline"""
     parser = argparse.ArgumentParser(
@@ -952,6 +973,12 @@ def main():
         help="Target contact distance between surfaces in meters (default: 0.001 = 1mm)"
     )
     
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate inputs and report plan without executing processing"
+    )
+    
     args = parser.parse_args()
     
     # Load configuration
@@ -968,6 +995,11 @@ def main():
             file_config = json.load(f)
             config.update(file_config)
     
+    # Handle dry run
+    if args.dry_run:
+        success = run_dry_run(args.input_dir, args.output_dir, args.config)
+        sys.exit(0 if success else 1)
+        
     # Run pipeline
     pipeline = ReconstructionPipeline(config)
     success = pipeline.run_full_pipeline(args.input_dir, args.output_dir)
