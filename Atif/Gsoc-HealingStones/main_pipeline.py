@@ -26,6 +26,7 @@ from feature_extractor import BreakSurfaceFeatureExtractor
 from surface_matcher import SurfaceMatcher
 from fragment_aligner import FragmentAligner
 from reconstruction_visualizer import ReconstructionVisualizer
+from cli_utils import validate_dataset, print_validation_report
 
 class ReconstructionPipeline:
     """
@@ -900,6 +901,31 @@ class ReconstructionPipeline:
 
 def main():
     """Command line interface for the reconstruction pipeline"""
+    parser = argparse.ArgumentParser(
+        description="Mayan Stele Fragment Reconstruction Pipeline"
+    )
+    
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    
+    # Check-data command
+    check_parser = subparsers.add_parser("check-data", help="Validate dataset structure and inputs")
+    check_parser.add_argument("input_dir", help="Directory containing PLY files to validate")
+    check_parser.add_argument("--output_dir", help="Optional output directory to check writability")
+    
+    # To maintain backward compatibility, we can't easily use subparsers for the main run
+    # if it doesn't have a keyword. However, we can handle it manually or by 
+    # checking if the first argument is a command.
+    
+    # Re-adding the original arguments as a "run" command or handling them if no command is given
+    # But clean CLI usually uses subcommands. Let's check for "check-data" specifically.
+    
+    if len(sys.argv) > 1 and sys.argv[1] == "check-data":
+        args = parser.parse_args()
+        results, success = validate_dataset(args.input_dir, args.output_dir)
+        print_validation_report(results, "MAIN PIPELINE DATA CHECK")
+        sys.exit(0 if success else 1)
+
+    # If not check-data, use the original parser logic
     parser = argparse.ArgumentParser(
         description="Mayan Stele Fragment Reconstruction Pipeline"
     )

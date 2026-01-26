@@ -8,6 +8,7 @@ import json
 import argparse
 from typing import List, Dict, Tuple, Optional
 import cv2
+from cli_utils import validate_dataset, print_validation_report
 
 class PLYValidator:
     """
@@ -502,6 +503,11 @@ def main():
     parser = argparse.ArgumentParser(description="PLY Preprocessing and Validation Tools")
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
     
+    # Check-data command
+    check_parser = subparsers.add_parser('check-data', help='Validate dataset structure and inputs')
+    check_parser.add_argument('input', help='Directory containing PLY files to validate')
+    check_parser.add_argument('--output', help='Optional output directory to check writability')
+    
     # Validation command
     validate_parser = subparsers.add_parser('validate', help='Validate PLY files')
     validate_parser.add_argument('input', help='PLY file or directory to validate')
@@ -519,6 +525,11 @@ def main():
     
     args = parser.parse_args()
     
+    if args.command == 'check-data':
+        results, success = validate_dataset(args.input, args.output)
+        print_validation_report(results, "BATCH PROCESSOR DATA CHECK")
+        sys.exit(0 if success else 1)
+        
     if args.command == 'validate':
         validator = PLYValidator()
         
