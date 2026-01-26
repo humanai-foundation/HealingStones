@@ -1,6 +1,9 @@
 # Healing Stones: Reconstructing Cultural Heritage with AI
 
-Welcome to my GSoC 2025 submission for the project **"Healing Stones – Reconstructing digitized cultural heritage artifacts with artificial intelligence"** under the HumanAI organization.
+This directory contains an **experimental ICP-based reconstruction pipeline**
+developed as part of a Google Summer of Code (GSoC) exploration under the
+HumanAI Foundation.
+
 
 This project focuses on digitally reconstructing fragmented cultural artifacts (Mayan stele) using **3D point cloud data** and **AI-powered point cloud alignment techniques**.
 
@@ -15,6 +18,20 @@ This project proposes an **AI-powered approach** to:
 - Visualize and export the final unified digital model
 
 ---
+
+## Scope and Status
+
+This implementation represents a **baseline, geometry-driven approach**
+to fragment reconstruction using ICP alignment.
+
+- Focuses on pairwise and global ICP-based assembly
+- Does not include machine learning or learned feature extraction
+- Intended for experimentation, benchmarking, and comparison
+- Not the primary recommended pipeline for extension
+
+For the main modular reconstruction pipeline, see:
+➡️ `Atif/Gsoc-HealingStones`
+
 
 ## Features
 
@@ -49,6 +66,18 @@ This project proposes an **AI-powered approach** to:
 ```
 
 ---
+
+## Requirements
+
+- Python 3.8+
+- Open3D
+- NumPy
+- pandas
+
+Install all dependencies using:
+```bash
+pip install -r requirements.txt
+
 
 ## How to Run
 

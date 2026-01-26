@@ -2,6 +2,14 @@
 
 # Mayan Stele Fragment Reconstruction System
 
+## Requirements
+
+- Python 3.8 or higher
+- pip
+- Virtual environment (recommended)
+- OS: Windows / Linux / macOS
+
+
 ## Project Overview
 
 The goal of this project is to digitally reconstruct a fragmented **Mayan stele** using advanced 3D computer vision and deep learning techniques. The central topic is automatic artifact reassembly, where broken stone fragments are scanned as 3D point clouds and then analyzed to detect break surfaces, extract geometric features, and identify possible matches. To tackle this challenge, I preprocess the fragments with multi-scale downsampling and clustering, represent them as graphs of potential connections, and train a graph neural network and Siamese-based models to predict which fragments belong together. These predictions are refined with alignment algorithms like Iterative Closest Point (ICP), while ground truth reconstructions provide assembly knowledge to guide the model. Ultimately, the system aims to move from scattered fragments to a coherent, near-complete digital reconstruction of the stele, reducing manual effort while preserving archaeological heritage.
@@ -177,6 +185,9 @@ Latest reconstruction pipeline
 
 ## Getting Started
 
+This section explains how to set up the environment and run the reconstruction pipeline locally.
+
+
 ## Project Structure
 
 ```
@@ -251,3 +262,22 @@ For more comprehensive details about the project and documentation, you can expl
 - **cluster on break surface method**: [Cluster Branch](https://github.com/K-Atif18/healing-stones/tree/cluster)
 
 Contributions to this project are welcome. If you are interested in contributing, please fork the repository and submit a pull request. Ensure that your code follows the style and conventions used in this repository.
+
+
+
+
+## Installation
+
+### 1. Navigate to this directory
+```bash
+cd Atif/Gsoc-HealingStones
+
+python -m venv venv
+
+Win: venv\Scripts\activate
+
+Linux/OS: source venv/bin/activate
+
+pip install -r requirements.txt
+
+Verify: python setup_system.py

@@ -71,3 +71,32 @@ This implementation is useful for understanding research progress and explorator
 | Sergei Gleyzer | University of Alabama|[About Link](https://physics.ua.edu/people/sergei-gleyzer/)
 | Lizzette Soto| University of Alabama|[About Link](https://anthropology.ua.edu/graduate-student/lizzette-soto/)
 
+
+## Quick Start (Running the Code)
+
+This repository contains multiple implementations.  
+If you want to **run the reconstruction pipeline**, follow the steps below.
+
+### 1. Clone the repository
+```bash
+git clone https://github.com/humanai-foundation/HealingStones.git
+cd HealingStones
+
+2. Set up a Python virtual environment
+
+python -m venv venv
+
+Activate it:
+
+Windows
+venv\Scripts\activate
+
+Linux / macOS
+source venv/bin/activate
+
+3. Install dependencies
+pip install -r requirements.txt
+
+Additional dependencies for the reconstruction pipeline:
+
+pip install -r Atif/Gsoc-HealingStones/requirements.txt
