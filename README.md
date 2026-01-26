@@ -17,6 +17,36 @@ Historically works of art and architecture have been subjected to fragmentation:
 - Identify continuity of surface designs (e.g. parts of the same carved feature, but with gaps).
 - Identify broader dimensional resemblance (e.g. the shape of the stone blocks used to make that sculptural facade).
 
+## Repository Structure and Implementations
+
+This repository currently contains multiple experimental and research implementations developed as part of different GSoC efforts. Each directory serves a distinct purpose.
+
+### Atif/Gsoc-HealingStones
+This directory contains a Python-based reconstruction pipeline with modular components for fragment processing, feature extraction, alignment, matching, and visualization.
+
+Key characteristics:
+- Script-based pipeline (`main_pipeline.py`, `batch_processor.py`)
+- Modular architecture (feature extraction, surface matching, alignment)
+- Uses `requirements.txt` for dependencies
+- Intended for running end-to-end reconstruction experiments
+
+This implementation is suitable for users who want to run or extend the reconstruction pipeline.
+
+### Satvik/gsoc-2025-Healing-Stones-main
+This directory contains exploratory work, documentation, and experimental artifacts produced during a separate GSoC effort.
+
+Key characteristics:
+- Contains progress logs and documentation
+- Includes images and experimental resources
+- May not represent a complete runnable pipeline
+
+This implementation is useful for understanding research progress and exploratory approaches.
+
+### Which should I use?
+- If you want to **run or modify code**, start with `Atif/Gsoc-HealingStones`
+- If you want to **review research progress or documentation**, explore `Satvik/gsoc-2025-Healing-Stones-main`
+
+
 
 ## Expected results
 - Develop machine learning models that can reconstruct digitized fragments with at least 80% accuracy.
@@ -41,3 +71,32 @@ Historically works of art and architecture have been subjected to fragmentation:
 | Sergei Gleyzer | University of Alabama|[About Link](https://physics.ua.edu/people/sergei-gleyzer/)
 | Lizzette Soto| University of Alabama|[About Link](https://anthropology.ua.edu/graduate-student/lizzette-soto/)
 
+
+## Quick Start (Running the Code)
+
+This repository contains multiple implementations.  
+If you want to **run the reconstruction pipeline**, follow the steps below.
+
+### 1. Clone the repository
+```bash
+git clone https://github.com/humanai-foundation/HealingStones.git
+cd HealingStones
+
+2. Set up a Python virtual environment
+
+python -m venv venv
+
+Activate it:
+
+Windows
+venv\Scripts\activate
+
+Linux / macOS
+source venv/bin/activate
+
+3. Install dependencies
+pip install -r requirements.txt
+
+Additional dependencies for the reconstruction pipeline:
+
+pip install -r Atif/Gsoc-HealingStones/requirements.txt
