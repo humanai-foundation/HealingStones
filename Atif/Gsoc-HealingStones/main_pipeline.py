@@ -19,6 +19,8 @@ import argparse
 from pathlib import Path
 import numpy as np
 import time
+import os
+from contextlib import contextmanager
 
 # Import our custom modules
 from ply_loader import PLYColorExtractor
@@ -26,6 +28,21 @@ from feature_extractor import BreakSurfaceFeatureExtractor
 from surface_matcher import SurfaceMatcher
 from fragment_aligner import FragmentAligner
 from reconstruction_visualizer import ReconstructionVisualizer
+import cli_utils
+
+@contextmanager
+def suppress_stdout(enable=True):
+    """Context manager to suppress stdout prints."""
+    if not enable:
+        yield
+        return
+    with open(os.devnull, 'w') as fnull:
+        old_stdout = sys.stdout
+        sys.stdout = fnull
+        try:
+            yield
+        finally:
+            sys.stdout = old_stdout
 
 class ReconstructionPipeline:
     """
@@ -904,75 +921,143 @@ def main():
         description="Mayan Stele Fragment Reconstruction Pipeline"
     )
     
-    parser.add_argument(
-        "input_dir",
-        help="Directory containing PLY files with colored break surfaces"
-    )
+    # Use subparsers for multiple commands
+    subparsers = parser.add_subparsers(dest='command', help='Available commands')
     
-    parser.add_argument(
-        "output_dir",
-        help="Directory to save reconstruction results"
-    )
+    # Helper to add common arguments to subcommands
+    def add_common_args(sub_parser):
+        sub_parser.add_argument("--json", action="store_true", help="Output results as JSON")
+        sub_parser.add_argument("--report", action="store_true", help="Alias for --json")
+        sub_parser.add_argument("--min-similarity", type=float, default=0.6, help="Minimum similarity threshold for surface matching (default: 0.6)")
+        sub_parser.add_argument("--color-tolerance", type=float, default=0.3, help="Color matching tolerance (default: 0.3)")
+        sub_parser.add_argument("--config", help="JSON configuration file")
     
-    parser.add_argument(
-        "--min-similarity", 
-        type=float, 
-        default=0.6,
-        help="Minimum similarity threshold for surface matching (default: 0.6)"
-    )
-    
-    parser.add_argument(
-        "--color-tolerance",
-        type=float,
-        default=0.3,
-        help="Color matching tolerance (default: 0.3)"
-    )
-    
-    parser.add_argument(
-        "--visualize-steps",
-        action="store_true",
-        help="Show step-by-step visualizations"
-    )
-    
-    parser.add_argument(
-        "--no-reports",
-        action="store_true",
-        help="Skip generating detailed reports"
-    )
-    
-    parser.add_argument(
-        "--config",
-        help="JSON configuration file"
-    )
-    
-    parser.add_argument(
-        "--contact-distance",
-        type=float,
-        default=0.001,
-        help="Target contact distance between surfaces in meters (default: 0.001 = 1mm)"
-    )
-    
+    # reconstruct command
+    reconstruct_parser = subparsers.add_parser('reconstruct', help='Run full reconstruction pipeline')
+    add_common_args(reconstruct_parser)
+    reconstruct_parser.add_argument("input_dir", help="Directory containing PLY files")
+    reconstruct_parser.add_argument("output_dir", help="Directory to save reconstruction results")
+    reconstruct_parser.add_argument("--visualize-steps", action="store_true", help="Show step-by-step visualizations")
+    reconstruct_parser.add_argument("--no-reports", action="store_true", help="Skip generating detailed reports")
+    reconstruct_parser.add_argument("--contact-distance", type=float, default=0.001, help="Target contact distance (meters)")
+
+    # check-data command
+    check_parser = subparsers.add_parser('check-data', help='Check input data without full processing')
+    add_common_args(check_parser)
+    check_parser.add_argument("input_dir", help="Directory or file to check")
+
+    # validate command (alias/similar to check-data)
+    validate_parser = subparsers.add_parser('validate', help='Validate input data')
+    add_common_args(validate_parser)
+    validate_parser.add_argument("input_dir", help="Directory or file to validate")
+
+    # dry-run command
+    dry_parser = subparsers.add_parser('dry-run', help='Execute a dry run of the pipeline')
+    add_common_args(dry_parser)
+    dry_parser.add_argument("input_dir", help="Directory containing PLY files")
+    dry_parser.add_argument("output_dir", help="Directory to save reconstruction results")
+
+    # For backward compatibility, if the first argument is a directory and not a command
+    if len(sys.argv) > 1 and sys.argv[1] not in subparsers.choices and not sys.argv[1].startswith("-"):
+        sys.argv.insert(1, "reconstruct")
+
     args = parser.parse_args()
+    
+    if not args.command:
+        parser.print_help()
+        sys.exit(1)
+
+    json_mode = cli_utils.is_json_mode(args)
     
     # Load configuration
     config = {
-        'min_similarity': args.min_similarity,
-        'color_tolerance': args.color_tolerance,
-        'visualize_steps': args.visualize_steps,
-        'output_reports': not args.no_reports,
-        'assembly_contact_distance': args.contact_distance
+        'min_similarity': getattr(args, 'min_similarity', 0.6),
+        'color_tolerance': getattr(args, 'color_tolerance', 0.3),
+        'visualize_steps': getattr(args, 'visualize_steps', False),
+        'output_reports': not getattr(args, 'no_reports', False),
+        'assembly_contact_distance': getattr(args, 'contact_distance', 0.001)
     }
     
     if args.config:
-        with open(args.config, 'r') as f:
-            file_config = json.load(f)
-            config.update(file_config)
-    
-    # Run pipeline
-    pipeline = ReconstructionPipeline(config)
-    success = pipeline.run_full_pipeline(args.input_dir, args.output_dir)
-    
-    sys.exit(0 if success else 1)
+        try:
+            with open(args.config, 'r') as f:
+                config.update(json.load(f))
+        except Exception as e:
+            if json_mode:
+                cli_utils.format_json_output(args.command, "FAIL", errors=[f"Failed to load config: {str(e)}"])
+                sys.exit(1)
+            else:
+                print(f"Error loading config: {e}")
+                sys.exit(1)
+
+    with suppress_stdout(enable=json_mode):
+        try:
+            input_path = Path(args.input_dir) if hasattr(args, 'input_dir') else None
+            output_path = Path(args.output_dir) if hasattr(args, 'output_dir') else None
+            
+            if args.command in ['check-data', 'validate']:
+                errors = []
+                warnings = []
+                status = "PASS"
+                metadata = {"input_path": str(input_path)}
+                
+                if not input_path or not input_path.exists():
+                    status = "FAIL"
+                    errors.append(f"Input path {input_path} does not exist")
+                else:
+                    ply_files = list(input_path.glob("*.ply")) if input_path.is_dir() else ([input_path] if input_path.suffix == '.ply' else [])
+                    metadata["ply_count"] = len(ply_files)
+                    if not ply_files:
+                        status = "FAIL"
+                        errors.append("No PLY files found")
+                
+                if json_mode:
+                    cli_utils.format_json_output(args.command, status, metadata, errors, warnings)
+                else:
+                    print(f"Command: {args.command}, Status: {status}")
+                    for e in errors: print(f"Error: {e}")
+                sys.exit(0 if status == "PASS" else 1)
+
+            elif args.command == 'dry-run':
+                pipeline = ReconstructionPipeline(config)
+                ply_files = list(Path(args.input_dir).glob("*.ply"))
+                status = "PASS" if ply_files else "FAIL"
+                metadata = {
+                    "input_path": str(args.input_dir), 
+                    "output_path": str(args.output_dir), 
+                    "ply_count": len(ply_files)
+                }
+                errors = [] if ply_files else ["No PLY files found"]
+                
+                if json_mode:
+                    cli_utils.format_json_output(args.command, status, metadata, errors)
+                else:
+                    print(f"Dry run complete. Status: {status}")
+                sys.exit(0 if status == "PASS" else 1)
+
+            elif args.command == 'reconstruct':
+                pipeline = ReconstructionPipeline(config)
+                success = pipeline.run_full_pipeline(args.input_dir, args.output_dir)
+                status = "PASS" if success else "FAIL"
+                
+                if json_mode:
+                    metadata = {
+                        "input_path": str(args.input_dir), 
+                        "output_path": str(args.output_dir),
+                        "fragments_aligned": len(pipeline.transformations) if hasattr(pipeline, 'transformations') else 0
+                    }
+                    cli_utils.format_json_output(args.command, status, metadata)
+                
+                sys.exit(0 if success else 1)
+                
+        except Exception as e:
+            if json_mode:
+                cli_utils.format_json_output(args.command, "FAIL", errors=[str(e)])
+            else:
+                print(f"Error: {e}")
+            import traceback
+            if not json_mode: traceback.print_exc()
+            sys.exit(1)
 
 if __name__ == "__main__":
     main()

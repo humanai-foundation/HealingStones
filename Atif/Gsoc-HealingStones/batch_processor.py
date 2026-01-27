@@ -6,8 +6,25 @@ import matplotlib.pyplot as plt
 from sklearn.cluster import DBSCAN
 import json
 import argparse
+import sys
 from typing import List, Dict, Tuple, Optional
 import cv2
+import cli_utils
+from contextlib import contextmanager
+
+@contextmanager
+def suppress_stdout(enable=True):
+    """Context manager to suppress stdout prints."""
+    if not enable:
+        yield
+        return
+    with open(os.devnull, 'w') as fnull:
+        old_stdout = sys.stdout
+        sys.stdout = fnull
+        try:
+            yield
+        finally:
+            sys.stdout = old_stdout
 
 class PLYValidator:
     """
@@ -502,94 +519,155 @@ def main():
     parser = argparse.ArgumentParser(description="PLY Preprocessing and Validation Tools")
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
     
+    # helper
+    def add_common_args(sub_parser):
+        sub_parser.add_argument('--json', action='store_true', help='Output results as JSON')
+        sub_parser.add_argument('--report', action='store_true', help='Alias for --json')
+
     # Validation command
     validate_parser = subparsers.add_parser('validate', help='Validate PLY files')
+    add_common_args(validate_parser)
     validate_parser.add_argument('input', help='PLY file or directory to validate')
     validate_parser.add_argument('--output', '-o', help='Output validation report file')
-    validate_parser.add_argument('--json', action='store_true', help='Output results as JSON')
     
+    # check-data command (alias for validate)
+    check_parser = subparsers.add_parser('check-data', help='Alias for validate')
+    add_common_args(check_parser)
+    check_parser.add_argument('input', help='PLY file or directory to check')
+    check_parser.add_argument('--output', '-o', help='Output validation report file')
+
     # Preprocessing command
     preprocess_parser = subparsers.add_parser('preprocess', help='Preprocess PLY files')
+    add_common_args(preprocess_parser)
     preprocess_parser.add_argument('input', help='Input PLY file or directory')
     preprocess_parser.add_argument('output', help='Output PLY file or directory')
     preprocess_parser.add_argument('--no-clean', action='store_true', help='Skip mesh cleaning')
     preprocess_parser.add_argument('--no-normalize', action='store_true', help='Skip scale normalization')
     preprocess_parser.add_argument('--no-center', action='store_true', help='Skip centering')
     preprocess_parser.add_argument('--no-enhance-colors', action='store_true', help='Skip color enhancement')
+
+    # dry-run command
+    dry_parser = subparsers.add_parser('dry-run', help='Dry run of preprocessing/validation')
+    add_common_args(dry_parser)
+    dry_parser.add_argument('input', help='Input path')
+    dry_parser.add_argument('output', nargs='?', help='Output path (optional)')
     
     args = parser.parse_args()
     
-    if args.command == 'validate':
-        validator = PLYValidator()
-        
-        input_path = Path(args.input)
-        
-        if input_path.is_file():
-            # Validate single file
-            result = validator.validate_ply_file(args.input)
-            
-            if args.json:
-                print(json.dumps(result, indent=2))
-            else:
-                print(f"File: {result['filepath']}")
-                print(f"Valid: {result['valid']}")
-                if result['warnings']:
-                    print("Warnings:")
-                    for warning in result['warnings']:
-                        print(f"  - {warning}")
-                if result['errors']:
-                    print("Errors:")
-                    for error in result['errors']:
-                        print(f"  - {error}")
-        
-        elif input_path.is_dir():
-            # Validate directory
-            results = validator.validate_directory(args.input)
-            
-            if args.json:
-                if args.output:
-                    with open(args.output, 'w') as f:
-                        json.dump(results, f, indent=2)
-                else:
-                    print(json.dumps(results, indent=2))
-            else:
-                validator.generate_validation_report(results, args.output)
-        
-        else:
-            print(f"Error: {args.input} is not a valid file or directory")
-    
-    elif args.command == 'preprocess':
-        preprocessor = PLYPreprocessor()
-        
-        input_path = Path(args.input)
-        output_path = Path(args.output)
-        
-        # Set preprocessing options
-        options = {
-            'clean': not args.no_clean,
-            'normalize_scale': not args.no_normalize,
-            'center': not args.no_center,
-            'enhance_colors': not args.no_enhance_colors
-        }
-        
-        if input_path.is_file():
-            # Preprocess single file
-            success = preprocessor.preprocess_file(str(input_path), str(output_path), **options)
-            if not success:
-                exit(1)
-        
-        elif input_path.is_dir():
-            # Preprocess directory
-            results = preprocessor.preprocess_directory(str(input_path), str(output_path), **options)
-            if results['failed'] > 0:
-                exit(1)
-        
-        else:
-            print(f"Error: {args.input} is not a valid file or directory")
-            exit(1)
-    
-    else:
+    if not args.command:
         parser.print_help()
+        sys.exit(1)
+
+    json_mode = cli_utils.is_json_mode(args)
+
+    with suppress_stdout(enable=json_mode):
+        try:
+            input_path = Path(args.input) if hasattr(args, 'input') else None
+            output_path = Path(args.output) if (hasattr(args, 'output') and args.output) else None
+
+            if args.command in ['validate', 'check-data']:
+                validator = PLYValidator()
+                
+                if input_path.is_file():
+                    # Validate single file
+                    result = validator.validate_ply_file(args.input)
+                    status = "PASS" if result['valid'] else "FAIL"
+                    if json_mode:
+                        metadata = {
+                            "input_path": result['filepath'],
+                            "statistics": result['statistics']
+                        }
+                        cli_utils.format_json_output(args.command, status, metadata, result['errors'], result['warnings'])
+                    else:
+                        print(f"File: {result['filepath']}")
+                        print(f"Valid: {result['valid']}")
+                        if result['warnings']:
+                            print("Warnings:")
+                            for warning in result['warnings']:
+                                print(f"  - {warning}")
+                        if result['errors']:
+                            print("Errors:")
+                            for error in result['errors']:
+                                print(f"  - {error}")
+                    sys.exit(0 if status == "PASS" else 1)
+                
+                elif input_path.is_dir():
+                    # Validate directory
+                    results = validator.validate_directory(args.input)
+                    status = "PASS" if results['files_with_errors'] == 0 else "FAIL"
+                    if json_mode:
+                        metadata = {
+                            "input_path": results['directory'],
+                            "total_files": results['total_files'],
+                            "valid_files": results['valid_files']
+                        }
+                        cli_utils.format_json_output(args.command, status, metadata)
+                    else:
+                        validator.generate_validation_report(results, args.output)
+                    sys.exit(0 if status == "PASS" else 1)
+                else:
+                    msg = f"Error: {args.input} is not a valid file or directory"
+                    if json_mode:
+                        cli_utils.format_json_output(args.command, "FAIL", errors=[msg])
+                    else:
+                        print(msg)
+                    sys.exit(1)
+            
+            elif args.command == 'preprocess':
+                preprocessor = PLYPreprocessor()
+                options = {
+                    'clean': not args.no_clean,
+                    'normalize_scale': not args.no_normalize,
+                    'center': not args.no_center,
+                    'enhance_colors': not args.no_enhance_colors
+                }
+                
+                success = False
+                if input_path.is_file():
+                    success = preprocessor.preprocess_file(str(input_path), str(output_path), **options)
+                elif input_path.is_dir():
+                    results = preprocessor.preprocess_directory(str(input_path), str(output_path), **options)
+                    success = results['failed'] == 0
+                
+                status = "PASS" if success else "FAIL"
+                if json_mode:
+                    metadata = {
+                        "input_path": str(input_path),
+                        "output_path": str(output_path)
+                    }
+                    cli_utils.format_json_output(args.command, status, metadata)
+                
+                sys.exit(0 if success else 1)
+
+            elif args.command == 'dry-run':
+                # Dry run: check if input exists and is valid PLY
+                status = "PASS" if input_path.exists() else "FAIL"
+                errors = [] if status == "PASS" else [f"Path {args.input} does not exist"]
+                metadata = {
+                    "input_path": str(input_path),
+                    "output_path": str(output_path) if output_path else None
+                }
+                
+                if input_path.is_dir():
+                    ply_files = list(input_path.glob("*.ply"))
+                    metadata["ply_count"] = len(ply_files)
+                    if not ply_files:
+                        status = "FAIL"
+                        errors.append("No PLY files found")
+                
+                if json_mode:
+                    cli_utils.format_json_output(args.command, status, metadata, errors)
+                else:
+                    print(f"Dry run: {status}")
+                    for e in errors: print(f"Error: {e}")
+                sys.exit(0 if status == "PASS" else 1)
+
+        except Exception as e:
+            if json_mode:
+                cli_utils.format_json_output(args.command, "FAIL", errors=[str(e)])
+            else:
+                print(f"Error: {e}")
+            sys.exit(1)
 
 if __name__ == "__main__":
     main()
