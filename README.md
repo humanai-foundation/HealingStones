@@ -32,6 +32,52 @@ Historically works of art and architecture have been subjected to fragmentation:
   
 [Visual Documentation Lab](https://sites.ua.edu/atokovinine/3d-lab/)
 
+
+
+Clarification: `atif/` vs. `satvik/` Implementations
+
+### Overview
+This repository contains two distinct implementation directories — **`atif/`** and **`satvik/`** — which were developed in parallel by different contributors.  
+Their purposes and maintenance status differ, and this section clarifies their roles.
+
+| Directory | Purpose | Status | Recommended for New Contributors? |
+|------------|----------|---------|----------------------------------|
+| `atif/` | Early **experimental** pipeline used for initial prototyping and exploration of the HealingStones framework. Retained for reference and reproducibility of older experiments. | **Experimental / Legacy** | ❌ No |
+| `satvik/` | **Current, actively maintained implementation** that reflects the latest design decisions, updated dependencies, and stable architecture. Intended for new development and general use. | **Active / Maintained** | ✅ Yes |
+
+---
+
+### Setup Guidance
+
+1. **For new contributors**, use the `satvik/` implementation.  
+2. **Install dependencies** from `satvik/requirements.txt`:
+   ```bash
+   cd satvik
+   pip install -r requirements.txt
+
+1. Follow the setup and usage instructions provided in satvik/README.md.
+2. Only use the atif/ directory if you need to reproduce older results or review legacy experiments.
+bashDownloadCopy codecd atif
+pip install -r requirements.txt     # Only required for legacy reproduction
+
+
+
+Why This Matters
+Without clear distinction between these directories, contributors may:
+
+* Install conflicting or outdated dependencies.
+* Work within an unmaintained experimental branch.
+* Duplicate efforts by following outdated pipelines.
+
+Clarifying these details helps ensure smooth onboarding, consistent environment setup, and proper focus on the active (satvik/) pipeline.
+
+Suggested Improvement Summary
+
+* Add this clarification section to the main README.md.
+* Indicate that satvik/ is the recommended starting point for all new contributors.
+* Optionally include the maintenance status table above to guide future contributors.
+
+
 ## Mentors
 |||| 
 |-----------------|-----------------|-----------------
