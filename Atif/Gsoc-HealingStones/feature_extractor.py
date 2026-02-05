@@ -13,6 +13,30 @@ class BreakSurfaceFeatureExtractor:
     
     def __init__(self):
         self.features = {}
+        
+    def _validate_surface(self, points):
+        """
+        Validate if a surface is suitable for feature extraction.
+        Prevents crashes and unstable geometric computations.
+        """
+        if points is None or len(points) < 10:
+            return False
+        
+        # Check for NaN or infinite values
+        if not np.isfinite(points).all():
+            return False
+        
+        # Check if points are not all identical (degenerate surface)
+        if np.allclose(points, points[0]):
+            return False
+        
+        # Check minimum spatial spread (avoid near-flat line clusters)
+        spread = np.max(points, axis=0) - np.min(points, axis=0)
+        if np.linalg.norm(spread) < 1e-6:
+            return False
+        
+        return True
+
     
     def compute_surface_normal(self, points):
         """Compute the dominant normal vector of a surface using PCA"""
@@ -164,9 +188,11 @@ class BreakSurfaceFeatureExtractor:
         """
         points = surface_data['points']
         point_cloud = surface_data['point_cloud']
-        
-        if len(points) < 3:
+
+        # Validate surface before extracting features
+        if not self._validate_surface(points):
             return None
+
         
         features = {
             'color': surface_data['color'],
