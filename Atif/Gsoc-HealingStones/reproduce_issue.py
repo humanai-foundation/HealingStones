@@ -2,6 +2,7 @@
 import numpy as np
 import open3d as o3d
 import os
+from pathlib import Path
 from ply_loader import PLYColorExtractor
 
 def create_dummy_ply(filename):
@@ -13,7 +14,7 @@ def create_dummy_ply(filename):
     points = np.random.rand(100, 3).astype(np.float64)
     
     # Create colors
-    colors = np.zeros((100, 3), dtype(np.float64))
+    colors = np.zeros((100, 3), dtype=np.float64)
     
     # indices 0-29: RED (0.8, 0.1, 0.1) -> Should be detected as RED
     colors[0:30] = [0.8, 0.1, 0.1]
