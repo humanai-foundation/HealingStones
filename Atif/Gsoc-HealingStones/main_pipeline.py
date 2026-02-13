@@ -19,6 +19,7 @@ import argparse
 from pathlib import Path
 import numpy as np
 import time
+from tqdm import tqdm
 
 # Import our custom modules
 from ply_loader import PLYColorExtractor
@@ -70,12 +71,26 @@ class ReconstructionPipeline:
         
         start_time = time.time()
         
-        # Load all fragments
+        # Load all fragments with progress bar
         print(f"Loading fragments from: {input_directory}")
-        self.fragments = self.ply_extractor.process_all_fragments(input_directory)
+        
+        directory = Path(input_directory)
+        ply_files = list(directory.glob("*.ply"))
+        
+        if not ply_files:
+            raise ValueError(f"No PLY files found in {input_directory}")
+        
+        self.fragments = []
+        with tqdm(total=len(ply_files), desc="Loading fragments", unit="file") as pbar:
+            for ply_file in ply_files:
+                pbar.set_postfix_str(ply_file.name)
+                fragment_data = self.ply_extractor.process_fragment(ply_file)
+                if fragment_data:
+                    self.fragments.append(fragment_data)
+                pbar.update(1)
         
         if not self.fragments:
-            raise ValueError(f"No valid PLY files found in {input_directory}")
+            raise ValueError(f"No valid PLY files could be loaded from {input_directory}")
         
         # Print summary
         print(f"\nLoaded {len(self.fragments)} fragments:")
