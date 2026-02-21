@@ -67,15 +67,13 @@ class SurfaceMatcher:
         hist1 = np.array(features1.get('curvature_histogram', [0] * 10))
         hist2 = np.array(features2.get('curvature_histogram', [0] * 10))
 
-        # If both histograms are all-zero, feature data is absent
-        if np.sum(hist1) == 0 and np.sum(hist2) == 0:
-            return None  # Insufficient data
+        # If either histogram is all-zero, feature data is absent for that surface
+        if np.sum(hist1) == 0 or np.sum(hist2) == 0:
+            return None  # Insufficient data — one or both histograms missing
 
-        # Normalize histograms
-        if np.sum(hist1) > 0:
-            hist1 = hist1 / np.sum(hist1)
-        if np.sum(hist2) > 0:
-            hist2 = hist2 / np.sum(hist2)
+        # Normalize histograms (both are guaranteed non-zero here)
+        hist1 = hist1 / np.sum(hist1)
+        hist2 = hist2 / np.sum(hist2)
 
         return float(np.sum(np.minimum(hist1, hist2)))
     
@@ -275,7 +273,11 @@ class SurfaceMatcher:
             for j in range(i + 1, len(fragments)):
                 fragment1 = fragments[i]
                 fragment2 = fragments[j]
-                
+
+                if 'features' not in fragment1 or 'features' not in fragment2:
+                    print(f"  ⚠️ Skipping pair ({i}, {j}) — missing features dict")
+                    continue
+
                 pair_key = f"fragment_{i}_to_{j}"
                 print(f"\n  Finding matches between fragment {i} and fragment {j}...")
                 
@@ -374,7 +376,10 @@ class SurfaceMatcher:
         print(f"Overall Similarity: {match_info['similarity']:.3f}")
         print(f"Detailed Similarities:")
         for key, value in match_info['detailed_similarities'].items():
-            print(f"  {key}: {value:.3f}")
+            if value is None:
+                print(f"  {key}: N/A (insufficient data)")
+            else:
+                print(f"  {key}: {value:.3f}")
 
 # Test the fixed surface matcher
 def test_fixed_matcher():
