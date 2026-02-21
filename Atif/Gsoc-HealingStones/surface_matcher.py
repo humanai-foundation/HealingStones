@@ -49,7 +49,7 @@ class SurfaceMatcher:
         """Compute similarity based on shape descriptors"""
         # Compare eigenvalue ratios
         if 'eigenvalues' not in features1 or 'eigenvalues' not in features2:
-            return 0.95  # Default high similarity if no eigenvalues
+            return None  # Insufficient data — eigenvalues unavailable
         
         eig1 = np.array(features1['eigenvalues'])
         eig2 = np.array(features2['eigenvalues'])
@@ -66,40 +66,45 @@ class SurfaceMatcher:
         """Compute similarity based on curvature distributions"""
         hist1 = np.array(features1.get('curvature_histogram', [0] * 10))
         hist2 = np.array(features2.get('curvature_histogram', [0] * 10))
-        
+
+        # If both histograms are all-zero, feature data is absent
+        if np.sum(hist1) == 0 and np.sum(hist2) == 0:
+            return None  # Insufficient data
+
         # Normalize histograms
         if np.sum(hist1) > 0:
             hist1 = hist1 / np.sum(hist1)
         if np.sum(hist2) > 0:
             hist2 = hist2 / np.sum(hist2)
-        
-        # Compute histogram intersection
-        intersection = np.sum(np.minimum(hist1, hist2))
-        return max(intersection, 0.90)  # Default high similarity if no histograms
+
+        return float(np.sum(np.minimum(hist1, hist2)))
     
     def compute_boundary_similarity(self, features1, features2):
-        """Compute similarity based on boundary features"""
-        # Compare boundary lengths
+        """Compute similarity based on boundary features.
+
+        Returns None when neither boundary length nor compactness is
+        available for both surfaces, so the caller can exclude this
+        sub-score rather than use a fabricated fallback.
+        """
         length1 = features1.get('boundary_length', 0)
         length2 = features2.get('boundary_length', 0)
-        
-        if length1 == 0 or length2 == 0:
-            length_sim = 0.85  # Default reasonable similarity
-        else:
-            length_sim = min(length1, length2) / max(length1, length2)
-        
-        # Compare compactness
         comp1 = features1.get('compactness', 0)
         comp2 = features2.get('compactness', 0)
-        
-        if comp1 == 0 and comp2 == 0:
-            comp_sim = 1
-        elif comp1 == 0 or comp2 == 0:
-            comp_sim = 0.85  # Default reasonable similarity
-        else:
-            comp_sim = min(comp1, comp2) / max(comp1, comp2)
-        
-        return (length_sim + comp_sim) / 2
+
+        sub_scores = []
+
+        # Only include length if both values are present and non-zero
+        if length1 > 0 and length2 > 0:
+            sub_scores.append(min(length1, length2) / max(length1, length2))
+
+        # Only include compactness if both values are present and non-zero
+        if comp1 > 0 and comp2 > 0:
+            sub_scores.append(min(comp1, comp2) / max(comp1, comp2))
+
+        if not sub_scores:
+            return None  # Insufficient data — cannot determine boundary similarity
+
+        return sum(sub_scores) / len(sub_scores)
     
     def compute_size_similarity(self, features1, features2):
         """Compute similarity based on surface size (number of points)"""
@@ -113,27 +118,44 @@ class SurfaceMatcher:
         return ratio
     
     def compute_overall_similarity(self, features1, features2):
-        """Compute weighted overall similarity between two surfaces"""
-        similarities = {}
-        
-        similarities['normal'] = self.compute_normal_similarity(features1, features2)
-        similarities['area'] = self.compute_area_similarity(features1, features2)
-        similarities['shape'] = self.compute_shape_similarity(features1, features2)
-        similarities['curvature'] = self.compute_curvature_similarity(features1, features2)
-        similarities['boundary'] = self.compute_boundary_similarity(features1, features2)
-        similarities['size'] = self.compute_size_similarity(features1, features2)
-        
-        # Compute weighted sum
-        overall_similarity = (
-            similarities['normal'] * self.weights['normal_similarity'] +
-            similarities['area'] * self.weights['area_similarity'] +
-            similarities['shape'] * self.weights['shape_similarity'] +
-            similarities['curvature'] * self.weights['curvature_similarity'] +
-            similarities['boundary'] * self.weights['boundary_similarity'] +
-            similarities['size'] * self.weights['size_similarity']
+        """Compute weighted overall similarity between two surfaces.
+
+        Sub-scores that return None (insufficient feature data) are excluded
+        and the remaining weights are renormalized to sum to 1.0, so the
+        overall score is always in [0, 1] and not skewed by missing features.
+        """
+        raw_scores = {
+            'normal':    self.compute_normal_similarity(features1, features2),
+            'area':      self.compute_area_similarity(features1, features2),
+            'shape':     self.compute_shape_similarity(features1, features2),
+            'curvature': self.compute_curvature_similarity(features1, features2),
+            'boundary':  self.compute_boundary_similarity(features1, features2),
+            'size':      self.compute_size_similarity(features1, features2),
+        }
+
+        weight_map = {
+            'normal':    self.weights['normal_similarity'],
+            'area':      self.weights['area_similarity'],
+            'shape':     self.weights['shape_similarity'],
+            'curvature': self.weights['curvature_similarity'],
+            'boundary':  self.weights['boundary_similarity'],
+            'size':      self.weights['size_similarity'],
+        }
+
+        # Exclude sub-scores with missing data (None)
+        valid_scores = {k: v for k, v in raw_scores.items() if v is not None}
+
+        if not valid_scores:
+            return 0.0, raw_scores
+
+        # Renormalize weights over available sub-scores so they still sum to 1.0
+        total_weight = sum(weight_map[k] for k in valid_scores)
+        overall_similarity = sum(
+            valid_scores[k] * weight_map[k] / total_weight
+            for k in valid_scores
         )
-        
-        return overall_similarity, similarities
+
+        return overall_similarity, raw_scores
     
     def find_surface_matches(self, fragment1, fragment2, color, min_similarity=0.3):
         """
