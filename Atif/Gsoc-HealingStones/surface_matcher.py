@@ -49,7 +49,7 @@ class SurfaceMatcher:
         """Compute similarity based on shape descriptors"""
         # Compare eigenvalue ratios
         if 'eigenvalues' not in features1 or 'eigenvalues' not in features2:
-            return 0.95  # Default high similarity if no eigenvalues
+            return 0.0  # FIX: Insufficient data, was 0.95
         
         eig1 = np.array(features1['eigenvalues'])
         eig2 = np.array(features2['eigenvalues'])
@@ -66,16 +66,18 @@ class SurfaceMatcher:
         """Compute similarity based on curvature distributions"""
         hist1 = np.array(features1.get('curvature_histogram', [0] * 10))
         hist2 = np.array(features2.get('curvature_histogram', [0] * 10))
-        
+
+        # FIX: Return 0.0 if either histogram has no data, was max(intersection, 0.90)
+        if np.sum(hist1) == 0 or np.sum(hist2) == 0:
+            return 0.0  # Insufficient data
+
         # Normalize histograms
-        if np.sum(hist1) > 0:
-            hist1 = hist1 / np.sum(hist1)
-        if np.sum(hist2) > 0:
-            hist2 = hist2 / np.sum(hist2)
+        hist1 = hist1 / np.sum(hist1)
+        hist2 = hist2 / np.sum(hist2)
         
         # Compute histogram intersection
         intersection = np.sum(np.minimum(hist1, hist2))
-        return max(intersection, 0.90)  # Default high similarity if no histograms
+        return intersection
     
     def compute_boundary_similarity(self, features1, features2):
         """Compute similarity based on boundary features"""
@@ -84,9 +86,9 @@ class SurfaceMatcher:
         length2 = features2.get('boundary_length', 0)
         
         if length1 == 0 or length2 == 0:
-            length_sim = 0.85  # Default reasonable similarity
-        else:
-            length_sim = min(length1, length2) / max(length1, length2)
+            return 0.0  # FIX: Insufficient data, was 0.85
+
+        length_sim = min(length1, length2) / max(length1, length2)
         
         # Compare compactness
         comp1 = features1.get('compactness', 0)
@@ -95,7 +97,7 @@ class SurfaceMatcher:
         if comp1 == 0 and comp2 == 0:
             comp_sim = 1
         elif comp1 == 0 or comp2 == 0:
-            comp_sim = 0.85  # Default reasonable similarity
+            comp_sim = 0.0  # FIX: Insufficient data, was 0.85
         else:
             comp_sim = min(comp1, comp2) / max(comp1, comp2)
         
@@ -138,14 +140,6 @@ class SurfaceMatcher:
     def find_surface_matches(self, fragment1, fragment2, color, min_similarity=0.3):
         """
         Find matching surfaces of a specific color between two fragments
-        
-        Args:
-            fragment1, fragment2: Fragment data with features
-            color: Color of break surfaces to match
-            min_similarity: Minimum similarity threshold
-        
-        Returns:
-            List of potential matches with similarity scores
         """
         if (color not in fragment1['features'] or 
             color not in fragment2['features'] or
@@ -173,7 +167,6 @@ class SurfaceMatcher:
                         'surface2_features': surf2
                     })
         
-        # Sort by similarity (descending)
         matches.sort(key=lambda x: x['similarity'], reverse=True)
         return matches
     
@@ -190,7 +183,6 @@ class SurfaceMatcher:
         surfaces1 = fragment1['features'][color]
         surfaces2 = fragment2['features'][color]
         
-        # Create similarity matrix
         similarity_matrix = np.zeros((len(surfaces1), len(surfaces2)))
         
         for i, surf1 in enumerate(surfaces1):
@@ -198,8 +190,6 @@ class SurfaceMatcher:
                 similarity, _ = self.compute_overall_similarity(surf1, surf2)
                 similarity_matrix[i, j] = similarity
         
-        # Use Hungarian algorithm for optimal assignment
-        # Convert to cost matrix (1 - similarity)
         cost_matrix = 1 - similarity_matrix
         row_indices, col_indices = linear_sum_assignment(cost_matrix)
         
@@ -223,23 +213,6 @@ class SurfaceMatcher:
     def find_all_matches(self, fragments, min_similarity=0.6, use_optimal=True):
         """
         Find all potential matches between all fragments
-        FIXED VERSION - returns correct structure for your pipeline
-        
-        Args:
-            fragments: List of fragments with features
-            min_similarity: Minimum similarity threshold
-            use_optimal: Use Hungarian algorithm for optimal matching
-        
-        Returns:
-            Dictionary of matches organized by fragment pairs and colors:
-            {
-                'fragment_0_to_1': {
-                    'blue': [match_objects...],
-                    'green': [match_objects...], 
-                    'red': [match_objects...]
-                },
-                ...
-            }
         """
         print(f"🔍 SurfaceMatcher.find_all_matches() - FIXED VERSION")
         print(f"   Fragments: {len(fragments)}")
@@ -257,10 +230,8 @@ class SurfaceMatcher:
                 pair_key = f"fragment_{i}_to_{j}"
                 print(f"\n  Finding matches between fragment {i} and fragment {j}...")
                 
-                # Initialize color structure for this pair
                 color_matches = {'blue': [], 'green': [], 'red': []}
                 
-                # Test each color
                 for color in ['blue', 'green', 'red']:
                     if use_optimal:
                         matches = self.find_optimal_matches(fragment1, fragment2, color, min_similarity)
@@ -270,12 +241,11 @@ class SurfaceMatcher:
                     if matches:
                         color_matches[color] = matches
                         print(f"    {color}: {len(matches)} matches")
-                        for match in matches[:2]:  # Show top 2
+                        for match in matches[:2]:
                             print(f"      Similarity: {match['similarity']:.4f}")
                     
                     total_matches += len(matches)
                 
-                # Store matches for this pair
                 all_matches[pair_key] = color_matches
                 
                 pair_total = sum(len(matches) for matches in color_matches.values())
@@ -298,45 +268,40 @@ class SurfaceMatcher:
         idx1 = match_info['fragment1_idx']
         idx2 = match_info['fragment2_idx']
         
-        # Get the surfaces
         surface1 = fragment1['break_surfaces'][color][idx1]
         surface2 = fragment2['break_surfaces'][color][idx2]
         
         points1 = surface1['points']
         points2 = surface2['points']
         
-        # Create visualization
         vis = o3d.visualization.Visualizer()
         vis.create_window(window_name=f"Surface Match - {color.capitalize()}")
         
-        # Create point clouds
         pcd1 = o3d.geometry.PointCloud()
         pcd1.points = o3d.utility.Vector3dVector(points1)
-        pcd1.paint_uniform_color([1, 0, 0])  # Red for fragment 1
+        pcd1.paint_uniform_color([1, 0, 0])
         
         pcd2 = o3d.geometry.PointCloud()
-        pcd2.points = o3d.utility.Vector3dVector(points2 + [0.1, 0, 0])  # Offset slightly
-        pcd2.paint_uniform_color([0, 0, 1])  # Blue for fragment 2
+        pcd2.points = o3d.utility.Vector3dVector(points2 + [0.1, 0, 0])
+        pcd2.paint_uniform_color([0, 0, 1])
         
-        # Add normals as arrows
         centroid1 = np.mean(points1, axis=0)
         centroid2 = np.mean(points2, axis=0) + [0.1, 0, 0]
         normal1 = np.array(match_info['surface1_features']['normal'])
         normal2 = np.array(match_info['surface2_features']['normal'])
         
-        # Create arrows for normals
         arrow1 = o3d.geometry.TriangleMesh.create_arrow(
             cylinder_radius=0.005, cone_radius=0.01, 
             cylinder_height=0.05, cone_height=0.02
         )
-        arrow1.paint_uniform_color([1, 1, 0])  # Yellow
+        arrow1.paint_uniform_color([1, 1, 0])
         arrow1.translate(centroid1)
         
         arrow2 = o3d.geometry.TriangleMesh.create_arrow(
             cylinder_radius=0.005, cone_radius=0.01,
             cylinder_height=0.05, cone_height=0.02
         )
-        arrow2.paint_uniform_color([0, 1, 0])  # Green
+        arrow2.paint_uniform_color([0, 1, 0])
         arrow2.translate(centroid2)
         
         vis.add_geometry(pcd1)
@@ -347,21 +312,19 @@ class SurfaceMatcher:
         vis.run()
         vis.destroy_window()
         
-        # Print match details
         print(f"\nMatch Details:")
         print(f"Overall Similarity: {match_info['similarity']:.3f}")
         print(f"Detailed Similarities:")
         for key, value in match_info['detailed_similarities'].items():
             print(f"  {key}: {value:.3f}")
 
-# Test the fixed surface matcher
+
 def test_fixed_matcher():
     """Test the fixed surface matcher with mock data"""
     
     print("🧪 TESTING FIXED SURFACE MATCHER")
     print("=" * 50)
     
-    # Mock fragment data from your diagnostic
     mock_fragments = [
         {
             'features': {
@@ -397,7 +360,6 @@ def test_fixed_matcher():
         }
     ]
     
-    # Test with different thresholds
     matcher = SurfaceMatcher()
     
     for threshold in [0.6, 0.4, 0.3]:
@@ -415,5 +377,3 @@ def test_fixed_matcher():
 
 if __name__ == "__main__":
     test_fixed_matcher()
-
-
