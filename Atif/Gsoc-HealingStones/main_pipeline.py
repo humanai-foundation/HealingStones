@@ -52,7 +52,9 @@ class ReconstructionPipeline:
         self.ply_extractor = PLYColorExtractor()
         self.feature_extractor = BreakSurfaceFeatureExtractor()
         self.surface_matcher = SurfaceMatcher()
-        self.fragment_aligner = FragmentAligner()
+        self.fragment_aligner = FragmentAligner(
+            icp_threshold=self.config.get('icp_threshold', 0.02)
+        )
         self.visualizer = ReconstructionVisualizer()
         
         # Pipeline data
@@ -426,7 +428,7 @@ class ReconstructionPipeline:
         return best_match_info
     
     def compute_contact_transform(self, assembled_fragment, target_fragment, match):
-        """Compute transform that brings break surfaces into contact"""
+        """Compute transform that brings break surfaces into contact with proper rotation"""
         try:
             # Get surface information
             color1 = match.get('surface1_color', match.get('color', 'blue'))
@@ -441,10 +443,6 @@ class ReconstructionPipeline:
             if len(points1) == 0 or len(points2) == 0:
                 return np.eye(4)
             
-            # Compute surface centroids
-            centroid1 = np.mean(points1, axis=0)
-            centroid2 = np.mean(points2, axis=0)
-            
             # Get surface normals from features
             if 'surface1_features' in match and 'surface2_features' in match:
                 normal1 = np.array(match['surface1_features']['normal'])
@@ -453,30 +451,46 @@ class ReconstructionPipeline:
                 # Normalize normals
                 normal1 = normal1 / (np.linalg.norm(normal1) + 1e-8)
                 normal2 = normal2 / (np.linalg.norm(normal2) + 1e-8)
-                
-                # For break surfaces, we want them to face each other
-                # Move target surface close to assembled surface along normal direction
-                contact_distance = self.config['assembly_contact_distance']
-                contact_offset = normal1 * contact_distance
-                target_position = centroid1 + contact_offset
-                translation = target_position - centroid2
             else:
-                # Fallback: simple centroid-based contact alignment
-                direction = centroid1 - centroid2
-                distance = np.linalg.norm(direction)
-                
-                if distance > 0:
-                    # Bring surfaces very close together
-                    contact_distance = self.config['assembly_contact_distance']
-                    translation = direction * (1.0 - contact_distance / distance)
-                else:
-                    translation = np.zeros(3)
+                normal1 = np.array([0, 0, 1])
+                normal2 = np.array([0, 0, -1])
             
-            # Build transformation matrix
-            transform = np.eye(4)
-            transform[:3, 3] = translation
+            # Use FragmentAligner to compute proper rotation + translation
+            initial_transform = self.fragment_aligner.compute_surface_alignment(
+                points1, points2, normal1, normal2
+            )
             
-            return transform
+            # Refine with ICP if meshes are available on both fragments
+            if 'mesh' in assembled_fragment and 'mesh' in target_fragment:
+                try:
+                    refined_transform, fitness = self.fragment_aligner.refine_alignment_icp(
+                        assembled_fragment['mesh'], target_fragment['mesh'],
+                        initial_transform
+                    )
+                    if fitness > 0.1:  # Only use ICP result if fitness is reasonable
+                        initial_transform = refined_transform
+                        print(f"      ICP refinement applied (fitness: {fitness:.3f})")
+                    else:
+                        print(f"      ICP fitness too low ({fitness:.3f}), using normal-based alignment")
+                except Exception as icp_err:
+                    print(f"      ICP refinement skipped: {icp_err}")
+            
+            # Apply contact distance offset along normal1 so surfaces almost touch
+            contact_distance = self.config['assembly_contact_distance']
+            centroid1 = np.mean(points1, axis=0)
+            points2_transformed = self.fragment_aligner.transform_points(points2, initial_transform)
+            centroid2_transformed = np.mean(points2_transformed, axis=0)
+            
+            # Nudge along normal1 so surfaces are contact_distance apart
+            current_gap = centroid1 - centroid2_transformed
+            gap_along_normal = np.dot(current_gap, normal1)
+            desired_gap = contact_distance
+            correction = normal1 * (gap_along_normal - desired_gap)
+            
+            # Apply correction to translation component
+            initial_transform[:3, 3] += correction
+            
+            return initial_transform
             
         except Exception as e:
             print(f"      Contact transform error: {e}")
