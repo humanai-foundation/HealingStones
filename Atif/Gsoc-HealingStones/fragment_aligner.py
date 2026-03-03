@@ -8,10 +8,12 @@ class FragmentAligner:
     """
     Align and register fragments based on matched break surfaces
     """
-    
-    def __init__(self):
+    DEFAULT_ICP_THRESHOLD = 0.02
+    def __init__(self, icp_threshold: float = DEFAULT_ICP_THRESHOLD):
         self.aligned_fragments = {}
         self.transformation_history = {}
+        self.icp_threshold = icp_threshold
+        
     
     def compute_surface_alignment(self, surface1_points, surface2_points, 
                                 surface1_normal, surface2_normal):
@@ -28,7 +30,7 @@ class FragmentAligner:
         # Step 1: Align centroids
         centroid1 = np.mean(surface1_points, axis=0)
         centroid2 = np.mean(surface2_points, axis=0)
-        translation = centroid1 - centroid2
+
         
         # Step 2: Align normals (surface2 normal should be opposite to surface1)
         normal1 = np.array(surface1_normal) / np.linalg.norm(surface1_normal)
@@ -62,6 +64,8 @@ class FragmentAligner:
                              skew_matrix @ skew_matrix * (1 / (1 + dot_product)))
         
         # Create 4x4 transformation matrix
+        translation = centroid1 - rotation_matrix @ centroid2
+
         transform = np.eye(4)
         transform[:3, :3] = rotation_matrix
         transform[:3, 3] = translation
@@ -95,7 +99,7 @@ class FragmentAligner:
         pcd2_transformed.estimate_normals()
         
         # Run ICP
-        threshold = 0.02  # Distance threshold
+        threshold = self.icp_threshold  # Distance threshold
         reg_p2p = o3d.pipelines.registration.registration_icp(
             pcd2_transformed, pcd1, threshold, np.eye(4),
             o3d.pipelines.registration.TransformationEstimationPointToPoint(),
