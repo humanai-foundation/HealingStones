@@ -42,8 +42,8 @@ class ReconstructionPipeline:
             'visualize_steps': False,
             'save_intermediate': True,
             'output_reports': True,
-            'assembly_contact_distance': 0.001  # 1mm contact distance for assembly
-        }
+            'assembly_contact_distance': 0.001,  # 1mm contact distance for assembly
+            'icp_threshold': 0.02          }
         
         if config:
             self.config.update(config)
@@ -52,7 +52,7 @@ class ReconstructionPipeline:
         self.ply_extractor = PLYColorExtractor()
         self.feature_extractor = BreakSurfaceFeatureExtractor()
         self.surface_matcher = SurfaceMatcher()
-        self.fragment_aligner = FragmentAligner()
+        self.fragment_aligner = FragmentAligner( icp_threshold=self.config.get('icp_threshold', FragmentAligner.DEFAULT_ICP_THRESHOLD) )        
         self.visualizer = ReconstructionVisualizer()
         
         # Pipeline data
@@ -455,12 +455,13 @@ class ReconstructionPipeline:
                 normal2 = normal2 / (np.linalg.norm(normal2) + 1e-8)
                 
                 # For break surfaces, we want them to face each other
-                # Move target surface close to assembled surface along normal direction
+                # Use full rigid alignment (rotation + translation) via FragmentAligner
                 contact_distance = self.config['assembly_contact_distance']
-                contact_offset = normal1 * contact_distance
-                target_position = centroid1 + contact_offset
-                translation = target_position - centroid2
-            else:
+                transform = self.fragment_aligner.compute_surface_alignment(
+                    points1, points2, normal1, normal2
+                )
+                # Apply contact offset along assembled surface normal
+                transform[:3, 3] += normal1 * contact_distance
                 # Fallback: simple centroid-based contact alignment
                 direction = centroid1 - centroid2
                 distance = np.linalg.norm(direction)
