@@ -41,7 +41,9 @@ class BreakSurfaceFeatureExtractor:
             radius: Radius for local curvature estimation
         """
         try:
-            # Ensure normals are computed
+            # Work on a copy so we never mutate the caller's point cloud
+            # in-place (estimate_normals modifies the object permanently).
+            point_cloud = o3d.geometry.PointCloud(point_cloud)
             if not point_cloud.has_normals():
                 point_cloud.estimate_normals()
             
@@ -106,33 +108,39 @@ class BreakSurfaceFeatureExtractor:
             return {
                 'boundary_length': boundary_length,
                 'compactness': compactness,
-                'boundary_points': boundary_points,
+                # Convert to plain Python list so this dict is JSON-serialisable
+                # and consistent with every other field returned by this class.
+                'boundary_points': boundary_points.tolist(),
                 'num_boundary_points': len(boundary_points)
             }
-        except:
+        except Exception as e:
             return {
                 'boundary_length': 0,
                 'compactness': 0,
-                'boundary_points': np.array([]),
-                'num_boundary_points': 0
+                'boundary_points': [],
+                'num_boundary_points': 0,
+                'boundary_error': str(e)
             }
     
     def compute_geometric_moments(self, points):
         """Compute geometric moments for shape description"""
         if len(points) == 0:
             return {}
-        
+
         # Center the points
         centroid = np.mean(points, axis=0)
-        centered_points = points - centroid
-        
+
         # Compute moments
         moments = {}
-        
-        # Second moments (covariance)
-        cov_matrix = np.cov(centered_points.T)
-        eigenvals, eigenvecs = np.linalg.eigh(cov_matrix)
-        
+
+        # Second moments via PCA — consistent with compute_surface_normal
+        # and avoids manually building the covariance matrix + eigh.
+        pca = PCA(n_components=min(3, points.shape[1]))
+        pca.fit(points)
+        # explained_variance_ == eigenvalues of the covariance matrix
+        eigenvals = pca.explained_variance_
+        eigenvecs = pca.components_   # shape (n_components, n_features)
+
         moments['eigenvalues'] = eigenvals.tolist()
         moments['principal_axes'] = eigenvecs.tolist()
         moments['shape_ratio'] = eigenvals[1] / eigenvals[0] if eigenvals[0] > 1e-10 else 0
@@ -226,8 +234,27 @@ class BreakSurfaceFeatureExtractor:
     
     def visualize_surface_features(self, fragment, color, surface_idx):
         """Visualize features of a specific break surface"""
-        if color not in fragment['break_surfaces'] or surface_idx >= len(fragment['break_surfaces'][color]):
-            print("Invalid surface specified")
+        # Guard 1: break_surfaces key / colour presence
+        if color not in fragment.get('break_surfaces', {}):
+            print(f"No break surfaces found for colour '{color}'")
+            return
+        if surface_idx >= len(fragment['break_surfaces'][color]):
+            print(
+                f"surface_idx {surface_idx} out of range — "
+                f"only {len(fragment['break_surfaces'][color])} surface(s) for '{color}'"
+            )
+            return
+        # Guard 2: features must have been extracted before visualising
+        if color not in fragment.get('features', {}):
+            print(
+                f"Features have not been extracted for colour '{color}'. "
+                "Run extract_all_features() first."
+            )
+            return
+        if surface_idx >= len(fragment['features'][color]):
+            print(
+                f"Feature entry missing for surface_idx {surface_idx} of '{color}'"
+            )
             return
         
         surface = fragment['break_surfaces'][color][surface_idx]
@@ -253,10 +280,10 @@ class BreakSurfaceFeatureExtractor:
                   normal[0], normal[1], normal[2], 
                   length=0.05, color='black', arrow_length_ratio=0.1)
         
-        # Boundary points if available
+        # Boundary points if available (stored as plain list — convert for numpy ops)
         if len(features['boundary_points']) > 0:
-            boundary = features['boundary_points']
-            ax1.scatter(boundary[:, 0], boundary[:, 1], boundary[:, 2], 
+            boundary = np.array(features['boundary_points'])
+            ax1.scatter(boundary[:, 0], boundary[:, 1], boundary[:, 2],
                        c='red', s=50, alpha=0.8)
         
         # Feature summary
