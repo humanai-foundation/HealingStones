@@ -17,6 +17,8 @@ import sys
 import json
 import argparse
 from pathlib import Path
+from collections import defaultdict
+from itertools import chain
 import numpy as np
 import time
 
@@ -256,6 +258,9 @@ class ReconstructionPipeline:
         if total_matches == 0:
             print("WARNING: No matches found! Consider lowering min_similarity threshold.")
         
+        # Build fragment-keyed index for O(1) lookup during assembly
+        self._build_fragment_match_index()
+
         elapsed = time.time() - start_time
         print(f"Step 3 completed in {elapsed:.2f} seconds")
         
@@ -401,28 +406,69 @@ class ReconstructionPipeline:
         
         return best_fragment
     
+    def _build_fragment_match_index(self):
+        """
+        Pre-index all_matches by fragment ID for O(1) neighbour lookup.
+        Call once after find_surface_matches() completes.
+
+        Result stored in self._fragment_match_index:
+            index[frag_a][frag_b] -> flat list of all match dicts across
+            every color bucket for that pair (shared by both directions).
+        """
+        index = defaultdict(dict)
+
+        for pair_key, color_data in self.all_matches.items():
+            parts = pair_key.split('_')
+            a, b = int(parts[1]), int(parts[3])
+
+            # Flatten all color buckets into one list once
+            flat = list(chain.from_iterable(color_data.values()))
+            if not flat:
+                continue
+
+            # Store under both directions so lookup never needs key ordering
+            index[a][b] = flat
+            index[b][a] = flat
+
+        self._fragment_match_index = index
+
     def find_best_assembly_match(self, assembled, remaining):
-        """Find best match between assembled and remaining fragments"""
+        """
+        Find best match between assembled and remaining fragments.
+        Requires _build_fragment_match_index() to have been called first.
+        """
         best_match_info = None
         best_similarity = 0
-        
+
         for assembled_frag in assembled:
+            # O(1): skip entirely if this fragment has no indexed neighbours
+            neighbours = self._fragment_match_index.get(assembled_frag, {})
+
             for remaining_frag in remaining:
-                pair_key = f"fragment_{min(assembled_frag, remaining_frag)}_to_{max(assembled_frag, remaining_frag)}"
-                
-                if pair_key in self.all_matches:
-                    # Find best match for this pair
-                    for color_matches in self.all_matches[pair_key].values():
-                        for match in color_matches:
-                            if match['similarity'] > best_similarity:
-                                best_similarity = match['similarity']
-                                best_match_info = {
-                                    'assembled_fragment': assembled_frag,
-                                    'target_fragment': remaining_frag,
-                                    'match': match,
-                                    'pair_key': pair_key
-                                }
-        
+                match_list = neighbours.get(remaining_frag)
+                if not match_list:
+                    continue
+
+                # Single-pass max over flat list — no inner colour-bucket loop
+                best_in_pair = max(match_list, key=lambda m: m['similarity'])
+
+                if best_in_pair['similarity'] > best_similarity:
+                    best_similarity = best_in_pair['similarity']
+                    pair_key = (
+                        f"fragment_{min(assembled_frag, remaining_frag)}"
+                        f"_to_{max(assembled_frag, remaining_frag)}"
+                    )
+                    best_match_info = {
+                        'assembled_fragment': assembled_frag,
+                        'target_fragment': remaining_frag,
+                        'match': best_in_pair,
+                        'pair_key': pair_key
+                    }
+
+            # Perfect match found — no need to search further
+            if best_similarity >= 1.0:
+                return best_match_info
+
         return best_match_info
     
     def compute_contact_transform(self, assembled_fragment, target_fragment, match):
