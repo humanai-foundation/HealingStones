@@ -2,7 +2,8 @@
 
 <div align="center">
    <img src="Puzzle2.jpg.jpeg" width=15% />
-    Reconstructing Digitized Cultural Heritage Artifacts with Artificial Intelligence.
+  
+   Reconstructing Digitized Cultural Heritage Artifacts with Artificial Intelligence.
 </div>
 
 <br>
