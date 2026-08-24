@@ -22,6 +22,77 @@ class PLYValidator:
             'red': {'min': [100, 0, 0], 'max': [255, 100, 100]}
         }
     
+    # ------------------------------------------------------------------ #
+    # HIGH PRIORITY DEFENSIVE CHECKS                                      #
+    # ------------------------------------------------------------------ #
+
+    MAX_FILE_SIZE_MB = 500
+    MIN_FILE_SIZE_BYTES = 80  # A valid PLY header is at least ~80 bytes
+
+    def _validate_path(self, filepath: Path) -> Tuple[List[str], List[str]]:
+        """
+        Check that the path exists, is a regular file, has a .ply extension,
+        and is readable.
+
+        Returns:
+            (errors, warnings) — errors are fatal; warnings are informational.
+        """
+        errors: List[str] = []
+        warnings: List[str] = []
+
+        if not filepath.exists():
+            errors.append(f"File does not exist: {filepath}")
+            return errors, warnings  # Nothing more to check
+
+        if not filepath.is_file():
+            errors.append(f"Path is not a regular file: {filepath}")
+            return errors, warnings
+
+        if filepath.suffix.lower() != '.ply':
+            errors.append(
+                f"Unexpected file extension '{filepath.suffix}' — expected '.ply'"
+            )
+
+        if not os.access(filepath, os.R_OK):
+            errors.append(f"File is not readable (permission denied): {filepath}")
+
+        return errors, warnings
+
+    def _check_file_size(self, filepath: Path) -> Tuple[List[str], List[str]]:
+        """
+        Reject files that are suspiciously small (likely corrupt/empty) and
+        warn on files so large they may exhaust memory.
+
+        Returns:
+            (errors, warnings)
+        """
+        errors: List[str] = []
+        warnings: List[str] = []
+
+        try:
+            size_bytes = filepath.stat().st_size
+        except OSError as exc:
+            errors.append(f"Could not stat file: {exc}")
+            return errors, warnings
+
+        size_mb = size_bytes / (1024 ** 2)
+
+        if size_bytes < self.MIN_FILE_SIZE_BYTES:
+            errors.append(
+                f"File is suspiciously small ({size_bytes} bytes) — "
+                "likely corrupt or empty"
+            )
+
+        if size_mb > self.MAX_FILE_SIZE_MB:
+            warnings.append(
+                f"File is very large ({size_mb:.1f} MB) — "
+                "processing may be slow or exhaust memory"
+            )
+
+        return errors, warnings
+
+    # ------------------------------------------------------------------ #
+
     def validate_ply_file(self, filepath: str) -> Dict:
         """
         Comprehensive validation of a single PLY file
@@ -37,7 +108,23 @@ class PLYValidator:
             'errors': [],
             'statistics': {}
         }
-        
+
+        # --- HIGH 1: path / extension / permission checks ---
+        path_errors, path_warnings = self._validate_path(filepath)
+        results['errors'].extend(path_errors)
+        results['warnings'].extend(path_warnings)
+        if path_errors:
+            results['valid'] = False
+            return results
+
+        # --- HIGH 2: file size checks ---
+        size_errors, size_warnings = self._check_file_size(filepath)
+        results['errors'].extend(size_errors)
+        results['warnings'].extend(size_warnings)
+        if size_errors:
+            results['valid'] = False
+            return results
+
         try:
             # Load mesh
             mesh = o3d.io.read_triangle_mesh(str(filepath))
@@ -127,8 +214,9 @@ class PLYValidator:
                     'color': center.astype(int).tolist(),
                     'percentage': float(cluster_size / len(colors) * 100)
                 })
-        except:
-            pass
+        except Exception as e:
+                analysis['dominant_colors'] = []
+                analysis['kmeans_error'] = str(e)
         
         return analysis
     
@@ -347,13 +435,23 @@ class PLYPreprocessor:
     
     def normalize_mesh_scale(self, mesh: o3d.geometry.TriangleMesh, target_size: float = 1.0) -> o3d.geometry.TriangleMesh:
         """Normalize mesh to a standard scale"""
+        # --- MEDIUM 2: guard against zero extent and invalid target_size ---
+        if target_size <= 0:
+            raise ValueError(
+                f"target_size must be a positive number, got {target_size}"
+            )
+
         bbox = mesh.get_axis_aligned_bounding_box()
         extent = bbox.get_extent()
-        max_extent = np.max(extent)
-        
+        max_extent = float(np.max(extent))
+
+        if max_extent == 0.0:
+            print("Warning: Mesh has zero bounding-box extent — skipping normalization")
+            return mesh
+
         scale_factor = target_size / max_extent
         mesh.scale(scale_factor, center=mesh.get_center())
-        
+
         print(f"Scaled mesh by factor {scale_factor:.3f}")
         return mesh
     
@@ -410,6 +508,26 @@ class PLYPreprocessor:
                        enhance_colors: bool = True) -> bool:
         """Preprocess a single PLY file"""
         try:
+            input_path_obj = Path(input_path)
+            output_path_obj = Path(output_path)
+
+            # --- MEDIUM 1a: prevent overwriting the source file ---
+            if input_path_obj.resolve() == output_path_obj.resolve():
+                print(
+                    f"Error: Output path is the same as input path ({input_path}). "
+                    "Aborting to avoid data loss."
+                )
+                return False
+
+            # --- MEDIUM 1b: ensure output directory exists and is writable ---
+            output_dir = output_path_obj.parent
+            output_dir.mkdir(parents=True, exist_ok=True)
+            if not os.access(output_dir, os.W_OK):
+                print(
+                    f"Error: No write permission to output directory: {output_dir}"
+                )
+                return False
+
             print(f"Preprocessing {input_path}...")
             
             # Load mesh
