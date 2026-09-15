@@ -49,7 +49,7 @@ class SurfaceMatcher:
         """Compute similarity based on shape descriptors"""
         # Compare eigenvalue ratios
         if 'eigenvalues' not in features1 or 'eigenvalues' not in features2:
-            return 0.95  # Default high similarity if no eigenvalues
+            return 0.0  # Insufficient data
         
         eig1 = np.array(features1['eigenvalues'])
         eig2 = np.array(features2['eigenvalues'])
@@ -75,7 +75,10 @@ class SurfaceMatcher:
         
         # Compute histogram intersection
         intersection = np.sum(np.minimum(hist1, hist2))
-        return max(intersection, 0.90)  # Default high similarity if no histograms
+        if np.sum(np.asarray(features1.get('curvature_histogram', []))) == 0 or \
+            np.sum(np.asarray(features2.get('curvature_histogram', []))) == 0:
+            return 0.0  # Insufficient data
+        return intersection
     
     def compute_boundary_similarity(self, features1, features2):
         """Compute similarity based on boundary features"""
@@ -84,7 +87,7 @@ class SurfaceMatcher:
         length2 = features2.get('boundary_length', 0)
         
         if length1 == 0 or length2 == 0:
-            length_sim = 0.85  # Default reasonable similarity
+            return 0.0  # Insufficient data - do not fabricate similarity
         else:
             length_sim = min(length1, length2) / max(length1, length2)
         
@@ -95,7 +98,7 @@ class SurfaceMatcher:
         if comp1 == 0 and comp2 == 0:
             comp_sim = 1
         elif comp1 == 0 or comp2 == 0:
-            comp_sim = 0.85  # Default reasonable similarity
+            return 0.0  # Insufficient data - do not fabricate similarity
         else:
             comp_sim = min(comp1, comp2) / max(comp1, comp2)
         
